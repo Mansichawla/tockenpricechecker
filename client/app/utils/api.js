@@ -1,4 +1,6 @@
 import axios from 'axios';
+import useProgressStore from '../store/useProgressStore';
+
 
 const API = axios.create({
   baseURL: 'http://localhost:5000/', // backend runs on port 5000
@@ -13,7 +15,8 @@ export const fetchPrice = async ({ token, network, timestamp }) => {
 };
 
 // POST /schedule
-export const scheduleFetch = async ({ token, network }) => {
+export const scheduleFetch = async ({ token, network}) => {
   const response = await API.post('/schedule', { token, network });
-  return response.data;
+  return useProgressStore.getState().setJobId(response.data.jobId); 
+  
 };

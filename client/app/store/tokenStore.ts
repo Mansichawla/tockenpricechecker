@@ -3,7 +3,7 @@ import { create } from 'zustand';
 interface TokenState {
   tokenAddress: string;
   network: string;
-  timestamp: string;
+  timestamp: Number;
   price: string;
   source: string;
   setData: (data: Partial<TokenState>) => void;
@@ -12,7 +12,7 @@ interface TokenState {
 export const useTokenStore = create<TokenState>((set) => ({
   tokenAddress: '',
   network: '',
-  timestamp: '',
+  timestamp: Date.now(),
   price: '',
   source: '',
   setData: (data) => set((state) => ({ ...state, ...data })),
