@@ -7,7 +7,7 @@ const repo = process.env.GITHUB_REPOSITORY;
 const [owner, repoName] = repo.split("/");
 
 const headers = {
-  Authorization: Bearer ${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},
+  Authorization: Bearer ${GITHUB_TOKEN},
   Accept: "application/vnd.github.v3+json",
 };
 
