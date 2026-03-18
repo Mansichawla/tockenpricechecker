@@ -2,12 +2,12 @@ name: AI Code Review
 
 on:
   pull_request:
-    types: [labeled]
+    types: [labeled,opened,synchronize]
 
 jobs:
-  review:
+  pr-review:
     # Only run if the specific label "gpt-review" is added
-    if: github.event.label.name == 'Needs-review'
+    if: github.event.pull_request.labels.name == 'Needs-review'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -16,6 +16,14 @@ jobs:
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install deps
+        run: npm install
 
       # Example using a community action for AI review
       # You will need to add an API Key to your Repo Secrets
@@ -31,6 +39,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PR_NUMBER: ${{github.event.pull_request.number}}
+          run: node.github/scripts/pr-review.js
           # Optional: Choose your model and language
           MODEL: gpt-5.4
           LANGUAGE: English

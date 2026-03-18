@@ -39,6 +39,7 @@ exports.getPrice = async (req, res) => {
     });
 
   } catch (err) {
+    console.log("debugging")
     console.error("Fetch price error:", err.message);
     return res.status(500).json({ error: "Internal server error" });
   }

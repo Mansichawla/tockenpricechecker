@@ -1,15 +1,108 @@
-
+const axios = require =("axios");
 const { exec } = require("child_process");
 const { promisify } = require("util");
 const execAsync = promisify(exec);
 const { context, getOctokit } = require("@actions/github");
 
-const AI_MODEL = "openai/gpt-5.4"; // or "groq/llama3‑70b", "anthropic/claude‑3‑sonnet", "gemini/gemini‑1.5‑flash"
+const AI_MODEL = "openai/gpt-5.4";
+const token = process.env.GITHUB_TOKEN;
+const prNumber = process.env.PR_Number;
+const repo = process.env.GITHUB_REPOSITORY;
+
+
+const [owner, repoName] = repo.split("/");
+
+const headers = {
+  Authorization: `Bearer ${token}`,
+  Accept: "application/vnd.github.v3+json",
+};
+
+async function getPRDetails() {
+  const res = await axios.get(
+    `https://api.github.com/repos/${owner}/${repoName}/pulls/${prNumber}`,
+    { headers }
+  );
+  return res.data;
+}
+
+async function getPRFiles() {
+  const res = await axios.get(
+    `https://api.github.com/repos/${owner}/${repoName}/pulls/${prNumber}/files`,
+    { headers }
+  );
+  return res.data;
+}
+async function postComment(body) {
+  await axios.post(
+    `https://api.github.com/repos/${owner}/${repoName}/issues/${prNumber}/comments`,
+    { body },
+    { headers }
+  );
+}
+
+async function runChecks() {
+  const pr = await getPRDetails();
+  const files = await getPRFiles();
+
+  let issues = [];
+
+  
+  // ✅ Rule 1: PR Description
+  if (!pr.body || pr.body.trim().length < 15) {
+    issues.push("❌ PR description is too short.");
+  }
+
+  // ✅ Rule 2: Large PR
+  const totalChanges = files.reduce((sum, f) => sum + f.changes, 0);
+  if (totalChanges > 500) {
+    issues.push(`⚠️ Large PR (${totalChanges} changes). Consider splitting.`);
+  }
+
+  // ✅ Rule 3: console.log check
+  for (const file of files) {
+    if (file.filename.endsWith(".js")) {
+      const content = await axios.get(file.raw_url);
+      if (content.data.includes("console.log")) {
+        issues.push(`❌ console.log found in ${file.filename}`);
+      }
+    }
+  }
+
+  // ✅ Rule 4: TODO check
+  for (const file of files) {
+    const content = await axios.get(file.raw_url);
+    if (content.data.includes("TODO")) {
+      issues.push(`⚠️ TODO found in ${file.filename}`);
+    }
+  }
+
+  return issues;
+}
+
+(async () => {
+  try {
+    const issues = await runChecks();
+
+    let message = "";
+
+    if (issues.length === 0) {
+      message = "✅ PR passed all automated checks!";
+    } else {
+      message = `
+## 🤖 Automated PR Review
+${issues.map(i => `- ${i}`).join("\n")}
+
+Please fix the above issues.
+      `;
+    }
+
+    await postComment(message);
+  } catch (err) {
+    console.error("Error:", err.message);
+  }
+})();
 const AI_BASE_URL =
   AI_MODEL.startsWith("openai") ? "https://api.openai.com" :
-//   AI_MODEL.startsWith("groq") ? "https://api.groq.com/openai" :
-//   AI_MODEL.startsWith("anthropic") ? "https://api.anthropic.com" :
-//   AI_MODEL.startsWith("gemini") ? "https://generativelanguage.googleapis.com" :
   null;
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
