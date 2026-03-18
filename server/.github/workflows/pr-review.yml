@@ -1,98 +1,36 @@
-const axios = require("axios");
+name: AI Code Review
 
-const token = process.env.GITHUB_TOKEN;
-const prNumber = process.env.PR_NUMBER;
-const repo = process.env.GITHUB_REPOSITORY;
+on:
+  pull_request:
+    types: [labeled]
 
-const [owner, repoName] = repo.split("/");
+jobs:
+  review:
+    # Only run if the specific label "gpt-review" is added
+    if: github.event.label.name == 'Needs-review'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
 
-const headers = {
-  Authorization: Bearer ${GITHUB_TOKEN},
-  Accept: "application/vnd.github.v3+json",
-};
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
-async function getPRDetails() {
-  const res = await axios.get(
-    https://api.github.com/repos/${owner}/${repoName}/pulls/${prNumber},
-    { headers }
-  );
-  return res.data;
-}
-
-async function getPRFiles() {
-  const res = await axios.get(
-    https://api.github.com/repos/${owner}/${repoName}/pulls/${prNumber}/files,
-    { headers }
-  );
-  return res.data;
-}
-
-async function postComment(body) {
-  await axios.post(
-    https://api.github.com/repos/${owner}/${repoName}/issues/${prNumber}/comments,
-    { body },
-    { headers }
-  );
-}
-
-async function runChecks() {
-  const pr = await getPRDetails();
-  const files = await getPRFiles();
-
-  let issues = [];
-
-  // ✅ Rule 1: PR Description
-  if (!pr.body || pr.body.trim().length < 15) {
-    issues.push("❌ PR description is too short.");
-  }
-
-  // ✅ Rule 2: Large PR
-  const totalChanges = files.reduce((sum, f) => sum + f.changes, 0);
-  if (totalChanges > 500) {
-    issues.push(⚠️ Large PR (${totalChanges} changes). Consider splitting.);
-  }
-
-  // ✅ Rule 3: console.log check
-  for (const file of files) {
-    if (file.filename.endsWith(".js")) {
-      const content = await axios.get(file.raw_url);
-      if (content.data.includes("console.log")) {
-        issues.push(❌ console.log found in ${file.filename});
-      }
-    }
-  }
-
-  // ✅ Rule 4: TODO check
-  for (const file of files) {
-    const content = await axios.get(file.raw_url);
-    if (content.data.includes("TODO")) {
-      issues.push(⚠️ TODO found in ${file.filename});
-    }
-  }
-
-  return issues;
-}
-
-(async () => {
-  try {
-    const issues = await runChecks();
-
-    let message = "";
-
-    if (issues.length === 0) {
-      message = "✅ PR passed all automated checks!";
-    } else {
-      message = `
-## 🤖 Automated PR Review
-
-${issues.map(i => - ${i}).join("\n")}
-
-Please fix the above issues.
-      `;
-    }
-
-    await postComment(message);
-  } catch (err) {
-    console.error("Error:", err.message);
-  }
-})();
+      # Example using a community action for AI review
+      # You will need to add an API Key to your Repo Secrets
+      - name: ChatGpt Reviewer
+        uses: mshick/add-pr-comment@v2
+        with:
+          message: |
+            ### 🤖 Automated Code Review Started
+            The "gpt-review" label was detected. I am now analyzing the changes...
+          
+      - name: PR Reviewer
+        uses: anc95/ChatGPT-CodeReview@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Optional: Choose your model and language
+          MODEL: gpt-5.4
+          LANGUAGE: English

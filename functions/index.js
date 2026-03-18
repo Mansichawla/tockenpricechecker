@@ -12,7 +12,45 @@ const fetch = require("node-fetch");
 
 
 
+const express = require('express');
+const axios = require('axios');
+const app = express();
+app.use(express.json());
 
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+app.post('/webhook', async (req, res) => {
+    const { action, label, pull_request, repository } = req.body;
+
+    // 1. Check if the action was "labeled" and the label is "Needs review"
+    if (action === 'labeled' && label.name === 'Needs-review') {
+        const prNumber = pull_request.number;
+        const repoFullname = repository.full_name;
+
+        // 2. Fetch the PR Diff from GitHub
+        const diffResponse = await axios.get(pull_request.diff_url);
+        const codeDiff = diffResponse.data;
+
+        // 3. Send Diff to your AI Logic
+        const aiReview = await getAiReview(codeDiff);
+
+        // 4. Post the comment back to the PR
+        await axios.post(
+            `https://api.github.com/repos/${repoFullname}/issues/${prNumber}/comments`,
+            { body: `### 🤖 Web-App Code Review\n\n${aiReview}` },
+            { headers: { Authorization: `token ${GITHUB_TOKEN}` } }
+        );
+    }
+    res.status(200).send('OK');
+});
+
+async function getAiReview(diff) {
+    // Logic to call OpenAI/Gemini/Claude goes here
+    return "The code looks good, but consider adding error handling on line 42.";
+}
+
+app.listen(3000, () => console.log('Review server running on port 3000'));
 
 
 
