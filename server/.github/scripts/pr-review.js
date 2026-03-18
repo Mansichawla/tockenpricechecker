@@ -1,19 +1,18 @@
-// scripts/ai-pr-review.js
 
 const { exec } = require("child_process");
 const { promisify } = require("util");
 const execAsync = promisify(exec);
 const { context, getOctokit } = require("@actions/github");
 
-const AI_MODEL = "openai/gpt-4o"; // or "groq/llama3‑70b", "anthropic/claude‑3‑sonnet", "gemini/gemini‑1.5‑flash"
+const AI_MODEL = "openai/gpt-5.4"; // or "groq/llama3‑70b", "anthropic/claude‑3‑sonnet", "gemini/gemini‑1.5‑flash"
 const AI_BASE_URL =
   AI_MODEL.startsWith("openai") ? "https://api.openai.com" :
-  AI_MODEL.startsWith("groq") ? "https://api.groq.com/openai" :
-  AI_MODEL.startsWith("anthropic") ? "https://api.anthropic.com" :
-  AI_MODEL.startsWith("gemini") ? "https://generativelanguage.googleapis.com" :
+//   AI_MODEL.startsWith("groq") ? "https://api.groq.com/openai" :
+//   AI_MODEL.startsWith("anthropic") ? "https://api.anthropic.com" :
+//   AI_MODEL.startsWith("gemini") ? "https://generativelanguage.googleapis.com" :
   null;
 
-const AI_API_KEY = process.env.AI_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 const PR_REVIEW_RULES = `
 - Check for security issues: SQL injection, XSS, hardcoded secrets, unsafe eval().
