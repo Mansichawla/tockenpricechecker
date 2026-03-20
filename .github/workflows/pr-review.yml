@@ -1,0 +1,98 @@
+const axios = require("axios");
+
+const token = process.env.GITHUB_TOKEN;
+const prNumber = process.env.PR_NUMBER;
+const repo = process.env.GITHUB_REPOSITORY;
+
+const [owner, repoName] = repo.split("/");
+
+const headers = {
+  Authorization: Bearer ${GITHUB_TOKEN},
+  Accept: "application/vnd.github.v3+json",
+};
+
+async function getPRDetails() {
+  const res = await axios.get(
+    https://api.github.com/repos/${owner}/${repoName}/pulls/${prNumber},
+    { headers }
+  );
+  return res.data;
+}
+
+async function getPRFiles() {
+  const res = await axios.get(
+    https://api.github.com/repos/${owner}/${repoName}/pulls/${prNumber}/files,
+    { headers }
+  );
+  return res.data;
+}
+
+async function postComment(body) {
+  await axios.post(
+    https://api.github.com/repos/${owner}/${repoName}/issues/${prNumber}/comments,
+    { body },
+    { headers }
+  );
+}
+
+async function runChecks() {
+  const pr = await getPRDetails();
+  const files = await getPRFiles();
+
+  let issues = [];
+
+  // ✅ Rule 1: PR Description
+  if (!pr.body || pr.body.trim().length < 15) {
+    issues.push("❌ PR description is too short.");
+  }
+
+  // ✅ Rule 2: Large PR
+  const totalChanges = files.reduce((sum, f) => sum + f.changes, 0);
+  if (totalChanges > 500) {
+    issues.push(⚠️ Large PR (${totalChanges} changes). Consider splitting.);
+  }
+
+  // ✅ Rule 3: console.log check
+  for (const file of files) {
+    if (file.filename.endsWith(".js")) {
+      const content = await axios.get(file.raw_url);
+      if (content.data.includes("console.log")) {
+        issues.push(❌ console.log found in ${file.filename});
+      }
+    }
+  }
+
+  // ✅ Rule 4: TODO check
+  for (const file of files) {
+    const content = await axios.get(file.raw_url);
+    if (content.data.includes("TODO")) {
+      issues.push(⚠️ TODO found in ${file.filename});
+    }
+  }
+
+  return issues;
+}
+
+(async () => {
+  try {
+    const issues = await runChecks();
+
+    let message = "";
+
+    if (issues.length === 0) {
+      message = "✅ PR passed all automated checks!";
+    } else {
+      message = `
+## 🤖 Automated PR Review
+
+${issues.map(i => - ${i}).join("\n")}
+
+Please fix the above issues.
+      `;
+    }
+
+    await postComment(message);
+  } catch (err) {
+    console.error("Error:", err.message);
+  }
+})();
