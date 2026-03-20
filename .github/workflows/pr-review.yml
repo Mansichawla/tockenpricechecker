@@ -8,39 +8,39 @@ jobs:
   review:
     runs-on: ubuntu-latest
 
-    # ✅ Run ONLY when this label is added
     if: github.event.label.name == 'Needs review'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ✅ Fetch full history (required for git diff)
       - name: Fetch all branches
         run: git fetch --all
 
-      # ✅ Get changed files (FIXED multi-line issue)
-      - name: Get PR files
-        run: |
-          FILES=$(git diff --name-only origin/${{ github.base_ref }}...origin/${{ github.head_ref }})
-
-          echo "FILES<<EOF" >> $GITHUB_ENV
-          echo "$FILES" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-      # ✅ Review Code
-      - name: Review Code
+      - name: Review PR
+        id: review
         run: |
           COMMENT=""
 
-          echo "$FILES" | while read file; do
-            # Skip empty lines
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...origin/${{ github.head_ref }})
+
+          echo "Changed files:"
+          echo "$FILES"
+
+          echo "$FILES" | while IFS= read -r file; do
+            # skip empty lines
             if [ -z "$file" ]; then
+              continue
+            fi
+
+            # skip .env files (important)
+            if [[ "$file" == *.env ]]; then
               continue
             fi
 
             if [[ "$file" == *.js ]]; then
               if [ -f "$file" ]; then
+
                 if grep -q "console.log" "$file"; then
                   COMMENT="$COMMENT\n❌ Avoid console.log in $file"
                 fi
@@ -48,24 +48,25 @@ jobs:
                 if grep -q "TODO" "$file"; then
                   COMMENT="$COMMENT\n⚠️ TODO found in $file"
                 fi
+
               fi
             fi
           done
 
-          # If no issues found
+          # default message
           if [ -z "$COMMENT" ]; then
             COMMENT="✅ PR passed all automated checks!"
           fi
 
-          echo "COMMENT<<EOF" >> $GITHUB_ENV
-          echo -e "$COMMENT" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # save comment safely
+          echo "comment<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$COMMENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      # ✅ Post comment on PR (FIXED JSON issue)
       - name: Comment on PR
         run: |
           curl -s -X POST \
           -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
-          -d "$(jq -nc --arg body "$COMMENT" '{body:$body}')"
+          -d "$(jq -nc --arg body "${{ steps.review.outputs.comment }}" '{body:$body}')"
