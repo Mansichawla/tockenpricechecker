@@ -6,16 +6,23 @@ on:
 
 jobs:
   review:
-    if: github.event.label.name == 'Needs-review'
     runs-on: ubuntu-latest
+
+    # ✅ FIXED CONDITION
+    if: github.event.label.name == 'Needs review'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ✅ IMPORTANT: fetch full history for diff
+      - name: Fetch all branches
+        run: git fetch --all
+
       - name: Get PR files
         run: |
-          echo "FILES=$(git diff --name-only origin/${{ github.base_ref }}...${{ github.head_ref }})" >> $GITHUB_ENV
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...origin/${{ github.head_ref }})
+          echo "FILES=$FILES" >> $GITHUB_ENV
 
       - name: Review Code
         run: |
@@ -27,6 +34,7 @@ jobs:
               fi
             fi
           done
+
           echo "COMMENT<<EOF" >> $GITHUB_ENV
           echo -e "$COMMENT" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -35,7 +43,7 @@ jobs:
         if: env.COMMENT != ''
         run: |
           curl -X POST \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
-          -d "{\"body\":\"${COMMENT}\"}"
+          -d "$(jq -nc --arg body "$COMMENT" '{body:$body}')"
