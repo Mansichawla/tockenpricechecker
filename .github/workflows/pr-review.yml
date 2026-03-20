@@ -8,41 +8,63 @@ jobs:
   review:
     runs-on: ubuntu-latest
 
-    # ✅ FIXED CONDITION
+    # ✅ Run ONLY when this label is added
     if: github.event.label.name == 'Needs review'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ✅ IMPORTANT: fetch full history for diff
+      # ✅ Fetch full history (required for git diff)
       - name: Fetch all branches
         run: git fetch --all
 
+      # ✅ Get changed files (FIXED multi-line issue)
       - name: Get PR files
         run: |
           FILES=$(git diff --name-only origin/${{ github.base_ref }}...origin/${{ github.head_ref }})
-          echo "FILES=$FILES" >> $GITHUB_ENV
 
+          echo "FILES<<EOF" >> $GITHUB_ENV
+          echo "$FILES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      # ✅ Review Code
       - name: Review Code
         run: |
           COMMENT=""
-          for file in $FILES; do
+
+          echo "$FILES" | while read file; do
+            # Skip empty lines
+            if [ -z "$file" ]; then
+              continue
+            fi
+
             if [[ "$file" == *.js ]]; then
-              if grep -q "console.log" "$file"; then
-                COMMENT="$COMMENT\n❌ Avoid console.log in $file"
+              if [ -f "$file" ]; then
+                if grep -q "console.log" "$file"; then
+                  COMMENT="$COMMENT\n❌ Avoid console.log in $file"
+                fi
+
+                if grep -q "TODO" "$file"; then
+                  COMMENT="$COMMENT\n⚠️ TODO found in $file"
+                fi
               fi
             fi
           done
+
+          # If no issues found
+          if [ -z "$COMMENT" ]; then
+            COMMENT="✅ PR passed all automated checks!"
+          fi
 
           echo "COMMENT<<EOF" >> $GITHUB_ENV
           echo -e "$COMMENT" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
+      # ✅ Post comment on PR (FIXED JSON issue)
       - name: Comment on PR
-        if: env.COMMENT != ''
         run: |
-          curl -X POST \
+          curl -s -X POST \
           -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
